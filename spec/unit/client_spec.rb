@@ -138,6 +138,31 @@ end
 describe 'request' do
   settings = {:server => 'http://localhost'}
 
+  it 'should return call to correct endpoint when method missing is used' do
+
+    client = PuppetDB::Client.new(settings)
+    mock_response = mock()
+    mock_response.expects(:code).returns(200)
+    mock_response.expects(:headers).returns({'X-Records' => 0})
+    mock_response.expects(:parsed_response).returns([])
+    PuppetDB::Client.expects(:get).with('/fact-names').returns(mock_response)
+
+    client.fact_names
+  end
+
+  #it 'should return call to correct endpoint when method missing is used' do
+  #
+  #  client = PuppetDB::Client.new(settings)
+  #  mock_response = mock()
+  #  mock_response.expects(:code).returns(200)
+  #  mock_response.expects(:headers).returns({'X-Records' => 0})
+  #  mock_response.expects(:parsed_response).returns([])
+  #  #client.expects(:request).once.with('facts', nil, {})
+  #  PuppetDB::Client.expects(:get).with('/facts', nil, {}).returns(mock_response)
+  #
+  #  client.facts({'query' => '[1,2,3]'})
+  #end
+
   it 'works with array instead of Query' do
     client = PuppetDB::Client.new(settings)
 
@@ -176,4 +201,6 @@ describe 'request' do
                      :foo_bar => "foo"
                    })
   end
+
+
 end

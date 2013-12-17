@@ -36,6 +36,11 @@ module PuppetDB
       nil
     end
 
+    def valid_endpoints
+      ['facts', 'fact-names', 'version', 'aggregate-event-counts', 'catalogs', 'event-counts', 'events', 'metrics',
+       'nodes', 'reports', 'resources', 'server-time']
+    end
+
     def hash_includes?(hash, *sought_keys)
       sought_keys.each {|x| return false unless hash.include?(x)}
       true
@@ -80,24 +85,42 @@ module PuppetDB
       end
     end
 
-    def request(endpoint, query, opts={})
-      query = PuppetDB::Query.maybe_promote(query)
-      json_query = query.build()
+    # turn all missing method names into query shortcuts for every puppetdb endpoint
+    # endpoint must exist in valid_endpoints for this to not raise NoMethodError
+    # If no query is given lets create an empty query for endpoints that do not require a query
+    # example:  client.fact_names  sends request to  request('fact-names', query, options)
+    def method_missing(method, *args, &block)
+       method = method.to_s.gsub('_', '-')
+       query  = args[0]
+       options ||= args[1] || {}
+       if valid_endpoints.include?(method)
+         request(method, query, options)
+       else
+         raise NoMethodError
+       end
+    end
 
+    def request(endpoint, query=nil, opts={})
       path = "/" + endpoint
-
-      filtered_opts = {'query' => json_query}
-      opts.each do |k,v|
-        if k == :counts_filter
-          filtered_opts['counts-filter'] = JSON.dump(v)
-        else
-          filtered_opts[k.to_s.sub("_", "-")] = v
+      ret = nil
+      if ! query.nil?
+        query = PuppetDB::Query.maybe_promote(query)
+        json_query = query.build()
+        filtered_opts = {'query' => json_query}
+        opts.each do |k,v|
+          if k == :counts_filter
+            filtered_opts['counts-filter'] = JSON.dump(v)
+          else
+            filtered_opts[k.to_s.sub("_", "-")] = v
+          end
         end
+        debug("#{path} #{json_query} #{opts}")
+
+        ret = self.class.get(path, :query => filtered_opts)
+      else
+        debug("#{path} #{json_query} #{opts}")
+        ret = self.class.get(path)
       end
-
-      debug("#{path} #{json_query} #{opts}")
-
-      ret = self.class.get(path, :query => filtered_opts)
       raise_if_error(ret)
 
       total = ret.headers['X-Records']
@@ -105,7 +128,7 @@ module PuppetDB
         total = ret.parsed_response.length
       end
 
-      Response.new(ret.parsed_response, total)
+      PuppetDB::Response.new(ret.parsed_response, total)
     end
   end
 end
